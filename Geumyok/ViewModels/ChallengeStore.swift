@@ -4,9 +4,11 @@ import SwiftUI
 @MainActor
 final class ChallengeStore: ObservableObject {
     @Published private(set) var challenge: Challenge?
+    @Published var selectedChallengeName = ""
     @Published var selectedTargetDays = 30
 
     private let storageKey = "geumyok.challenge.v1"
+    private let defaultChallengeName = "금욕"
     private let calendar: Calendar
     private let defaults: UserDefaults
     private let encoder = JSONEncoder()
@@ -35,10 +37,14 @@ final class ChallengeStore: ObservableObject {
         return max((calendar.dateComponents([.day], from: start, to: today).day ?? 0) + 1, 1)
     }
 
-    func startChallenge(targetDays: Int) {
+    @discardableResult
+    func startChallenge(name: String, targetDays: Int) -> Bool {
+        guard let normalizedName = normalizedChallengeName(name) else { return false }
         let normalizedTarget = min(max(targetDays, 1), 365)
+        selectedChallengeName = ""
         selectedTargetDays = normalizedTarget
         challenge = Challenge(
+            name: normalizedName,
             startDate: calendar.startOfDay(for: Date()),
             targetDays: normalizedTarget,
             records: [],
@@ -46,6 +52,7 @@ final class ChallengeStore: ObservableObject {
             endedDate: nil
         )
         save()
+        return true
     }
 
     func recordToday(_ status: DayStatus) {
@@ -69,12 +76,22 @@ final class ChallengeStore: ObservableObject {
 
         challenge.records.sort { $0.date < $1.date }
         self.challenge = challenge
+        if !challenge.isActive {
+            selectedChallengeName = ""
+        }
         save()
     }
 
     func resetChallenge() {
         challenge = nil
+        selectedChallengeName = ""
         defaults.removeObject(forKey: storageKey)
+    }
+
+    private func normalizedChallengeName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(24))
     }
 
     private func record(for date: Date, in challenge: Challenge) -> DailyCheckIn? {
@@ -101,6 +118,7 @@ final class ChallengeStore: ObservableObject {
 
         do {
             challenge = try decoder.decode(Challenge.self, from: data)
+            selectedChallengeName = challenge?.isActive == true ? challenge?.name ?? "" : ""
             selectedTargetDays = challenge?.targetDays ?? selectedTargetDays
         } catch {
             defaults.removeObject(forKey: storageKey)

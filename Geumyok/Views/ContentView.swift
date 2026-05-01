@@ -22,6 +22,7 @@ struct ContentView: View {
 
 private struct StartChallengeView: View {
     @ObservedObject var store: ChallengeStore
+    @State private var showingMissingNameAlert = false
 
     var body: some View {
         ScrollView {
@@ -41,6 +42,14 @@ private struct StartChallengeView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 18) {
+                    Text("목표명")
+                        .font(.headline)
+                        .foregroundStyle(.white.opacity(0.82))
+
+                    ChallengeNameField(name: $store.selectedChallengeName)
+                }
+
+                VStack(alignment: .leading, spacing: 18) {
                     Text("목표 일수")
                         .font(.headline)
                         .foregroundStyle(.white.opacity(0.82))
@@ -51,8 +60,16 @@ private struct StartChallengeView: View {
                 }
 
                 Button {
+                    guard hasChallengeName else {
+                        showingMissingNameAlert = true
+                        return
+                    }
+
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
-                        store.startChallenge(targetDays: store.selectedTargetDays)
+                        _ = store.startChallenge(
+                            name: store.selectedChallengeName,
+                            targetDays: store.selectedTargetDays
+                        )
                     }
                 } label: {
                     Label("도전 시작하기", systemImage: "flame.fill")
@@ -64,6 +81,11 @@ private struct StartChallengeView: View {
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .alert("목표명을 설정해주세요", isPresented: $showingMissingNameAlert) {
+                    Button("좋아요", role: .cancel) { }
+                } message: {
+                    Text("이 도전을 뭐라고 부를지 먼저 정해볼까요?")
+                }
 
                 Spacer(minLength: 18)
             }
@@ -71,6 +93,35 @@ private struct StartChallengeView: View {
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
         }
+    }
+
+    private var hasChallengeName: Bool {
+        !store.selectedChallengeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+private struct ChallengeNameField: View {
+    @Binding var name: String
+
+    var body: some View {
+        TextField("예: 금연, 야식 끊기", text: $name)
+            .font(.title3.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .frame(height: 56)
+            .background(Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .submitLabel(.done)
+            .onChange(of: name) { _, newValue in
+                guard newValue.count > 24 else { return }
+                name = String(newValue.prefix(24))
+            }
+            .accessibilityLabel("목표명 입력")
     }
 }
 
@@ -269,8 +320,10 @@ private struct ActiveChallengeView: View {
         VStack(spacing: 26) {
             HStack {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("금욕")
+                    Text(challenge.name)
                         .font(.title.weight(.black))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                     Text("D+\(store.dayNumber) · 목표 \(challenge.targetDays)일")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.62))
@@ -421,6 +474,11 @@ private struct StatPill: View {
 private struct ResultSummary: View {
     let challenge: Challenge
 
+    private var resultText: String {
+        let outcomeText = challenge.outcome == .completed ? "목표 달성" : "이전 도전 종료"
+        return "\(outcomeText) · \(challenge.successCount)일 성공 · 목표 \(challenge.targetDays)일"
+    }
+
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: challenge.outcome == .completed ? "trophy.fill" : "flag.checkered")
@@ -431,9 +489,10 @@ private struct ResultSummary: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(challenge.outcome == .completed ? "목표를 달성했어요" : "이전 도전이 끝났어요")
+                Text(challenge.name)
                     .font(.headline.weight(.bold))
-                Text("\(challenge.successCount)일 성공 · 목표 \(challenge.targetDays)일")
+                    .lineLimit(1)
+                Text(resultText)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.62))
             }
