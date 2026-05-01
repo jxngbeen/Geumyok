@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 struct ContentView: View {
     @StateObject private var store = ChallengeStore()
@@ -19,8 +22,6 @@ struct ContentView: View {
 
 private struct StartChallengeView: View {
     @ObservedObject var store: ChallengeStore
-
-    private let presets = [7, 14, 30, 66, 100]
 
     var body: some View {
         ScrollView {
@@ -44,40 +45,9 @@ private struct StartChallengeView: View {
                         .font(.headline)
                         .foregroundStyle(.white.opacity(0.82))
 
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(store.selectedTargetDays)")
-                            .font(.system(size: 64, weight: .heavy, design: .rounded))
-                            .contentTransition(.numericText())
-                        Text("일")
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.72))
-                    }
+                    TargetDayNumberField(selection: $store.selectedTargetDays)
 
-                    Stepper(value: $store.selectedTargetDays, in: 1...365, step: 1) {
-                        Text("하루씩 조정")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.68))
-                    }
-                    .tint(.mint)
-
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 10) {
-                        ForEach(presets, id: \.self) { day in
-                            Button {
-                                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                                    store.selectedTargetDays = day
-                                }
-                            } label: {
-                                Text("\(day)")
-                                    .font(.callout.weight(.bold))
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 44)
-                                    .background(store.selectedTargetDays == day ? Color.mint.opacity(0.95) : Color.white.opacity(0.09))
-                                    .foregroundStyle(store.selectedTargetDays == day ? Color.black : Color.white)
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                    TargetDayWheel(selection: $store.selectedTargetDays)
                 }
 
                 Button {
@@ -103,6 +73,193 @@ private struct StartChallengeView: View {
         }
     }
 }
+
+private struct TargetDayNumberField: View {
+    @Binding var selection: Int
+    @State private var text: String
+    @FocusState private var isFocused: Bool
+
+    init(selection: Binding<Int>) {
+        self._selection = selection
+        self._text = State(initialValue: "\(selection.wrappedValue)")
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            TextField("30", text: $text)
+                .font(.system(size: 64, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .focused($isFocused)
+                .frame(width: numberFieldWidth, alignment: .leading)
+                .animation(.easeOut(duration: 0.12), value: numberFieldWidth)
+                .multilineTextAlignment(.leading)
+#if os(iOS)
+                .keyboardType(.numberPad)
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("완료") {
+                            isFocused = false
+                        }
+                    }
+                }
+#endif
+                .accessibilityLabel("목표 일수 입력")
+
+            Text("일")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.72))
+        }
+        .onChange(of: text) { _, newValue in
+            syncSelection(with: newValue)
+        }
+        .onChange(of: selection) { _, newValue in
+            guard !isFocused else { return }
+            text = "\(newValue)"
+        }
+        .onChange(of: isFocused) { _, focused in
+            guard !focused else { return }
+            normalizeText()
+        }
+    }
+
+    private var numberFieldWidth: CGFloat {
+        let visibleText = text.isEmpty ? "\(selection)" : text
+        let digitCount = max(visibleText.count, 1)
+        return min(max(CGFloat(digitCount) * 40 + 8, 48), 132)
+    }
+
+    private func syncSelection(with value: String) {
+        let filtered = String(value.filter { $0.isNumber }.prefix(3))
+        guard filtered == value else {
+            text = filtered
+            return
+        }
+
+        guard let number = Int(filtered) else { return }
+        let clamped = min(max(number, 1), 365)
+        selection = clamped
+
+        if clamped != number {
+            text = "\(clamped)"
+        }
+    }
+
+    private func normalizeText() {
+        guard let number = Int(text) else {
+            text = "\(selection)"
+            return
+        }
+
+        let clamped = min(max(number, 1), 365)
+        selection = clamped
+        text = "\(clamped)"
+    }
+}
+
+private struct TargetDayWheel: View {
+    @Binding var selection: Int
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+
+#if os(iOS)
+            NativeDayWheelPicker(selection: $selection)
+                .frame(height: 184)
+#else
+            Picker("목표 일수", selection: $selection) {
+                ForEach(1...365, id: \.self) { day in
+                    Text("\(day)일")
+                        .tag(day)
+                }
+            }
+            .labelsHidden()
+            .frame(height: 184)
+#endif
+        }
+        .frame(height: 184)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+        .accessibilityLabel("목표 일수 선택")
+        .accessibilityValue("\(selection)일")
+    }
+}
+
+#if os(iOS)
+private struct NativeDayWheelPicker: UIViewRepresentable {
+    @Binding var selection: Int
+
+    func makeUIView(context: Context) -> UIPickerView {
+        let pickerView = UIPickerView()
+        pickerView.backgroundColor = .clear
+        pickerView.dataSource = context.coordinator
+        pickerView.delegate = context.coordinator
+        pickerView.selectRow(clamped(selection) - 1, inComponent: 0, animated: false)
+        return pickerView
+    }
+
+    func updateUIView(_ pickerView: UIPickerView, context: Context) {
+        context.coordinator.selection = $selection
+
+        let row = clamped(selection) - 1
+        if pickerView.selectedRow(inComponent: 0) != row {
+            pickerView.selectRow(row, inComponent: 0, animated: true)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(selection: $selection)
+    }
+
+    private func clamped(_ value: Int) -> Int {
+        min(max(value, 1), 365)
+    }
+
+    final class Coordinator: NSObject, UIPickerViewDataSource, UIPickerViewDelegate {
+        var selection: Binding<Int>
+
+        init(selection: Binding<Int>) {
+            self.selection = selection
+        }
+
+        func numberOfComponents(in pickerView: UIPickerView) -> Int {
+            1
+        }
+
+        func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
+            365
+        }
+
+        func pickerView(_ pickerView: UIPickerView, rowHeightForComponent component: Int) -> CGFloat {
+            44
+        }
+
+        func pickerView(_ pickerView: UIPickerView, widthForComponent component: Int) -> CGFloat {
+            pickerView.bounds.width
+        }
+
+        func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
+            selection.wrappedValue = row + 1
+        }
+
+        func pickerView(_ pickerView: UIPickerView, attributedTitleForRow row: Int, forComponent component: Int) -> NSAttributedString? {
+            NSAttributedString(
+                string: "\(row + 1)일",
+                attributes: [
+                    .font: UIFont.systemFont(ofSize: 22, weight: .semibold),
+                    .foregroundColor: UIColor.white.withAlphaComponent(0.86)
+                ]
+            )
+        }
+    }
+}
+#endif
 
 private struct ActiveChallengeView: View {
     @ObservedObject var store: ChallengeStore
