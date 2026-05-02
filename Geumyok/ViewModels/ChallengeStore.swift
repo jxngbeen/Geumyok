@@ -3,12 +3,13 @@ import SwiftUI
 
 @MainActor
 final class ChallengeStore: ObservableObject {
-    @Published private(set) var challenge: Challenge?
+    @Published private(set) var challenges: [Challenge] = []
+    @Published var selectedChallengeID: UUID?
     @Published var selectedChallengeName = ""
     @Published var selectedTargetDays = 30
 
-    private let storageKey = "geumyok.challenge.v1"
-    private let defaultChallengeName = "금욕"
+    private let storageKey = "geumyok.challenges.v2"
+    private let legacyStorageKey = "geumyok.challenge.v1"
     private let calendar: Calendar
     private let defaults: UserDefaults
     private let encoder = JSONEncoder()
@@ -18,6 +19,23 @@ final class ChallengeStore: ObservableObject {
         self.calendar = calendar
         self.defaults = defaults
         load()
+    }
+
+    var challenge: Challenge? {
+        guard let selectedChallengeID else { return nil }
+        return challenges.first { $0.id == selectedChallengeID }
+    }
+
+    var activeChallenges: [Challenge] {
+        challenges
+            .filter(\.isActive)
+            .sorted { $0.startDate > $1.startDate }
+    }
+
+    var finishedChallenges: [Challenge] {
+        challenges
+            .filter { !$0.isActive }
+            .sorted { ($0.endedDate ?? $0.startDate) > ($1.endedDate ?? $1.startDate) }
     }
 
     var hasFinishedChallenge: Bool {
@@ -41,9 +59,7 @@ final class ChallengeStore: ObservableObject {
     func startChallenge(name: String, targetDays: Int) -> Bool {
         guard let normalizedName = normalizedChallengeName(name) else { return false }
         let normalizedTarget = min(max(targetDays, 1), 365)
-        selectedChallengeName = ""
-        selectedTargetDays = normalizedTarget
-        challenge = Challenge(
+        let newChallenge = Challenge(
             name: normalizedName,
             startDate: calendar.startOfDay(for: Date()),
             targetDays: normalizedTarget,
@@ -51,17 +67,44 @@ final class ChallengeStore: ObservableObject {
             outcome: .inProgress,
             endedDate: nil
         )
+
+        challenges.append(newChallenge)
+        selectedChallengeID = newChallenge.id
+        selectedChallengeName = ""
+        selectedTargetDays = normalizedTarget
         save()
         return true
     }
 
-    func recordToday(_ status: DayStatus) {
-        guard var challenge, challenge.isActive else { return }
+    func selectChallenge(_ challenge: Challenge) {
+        selectedChallengeID = challenge.id
+        selectedChallengeName = challenge.isActive ? challenge.name : ""
+        selectedTargetDays = challenge.targetDays
+    }
 
+    func clearSelection() {
+        selectedChallengeID = nil
+        selectedChallengeName = ""
+    }
+
+    func toggleTodaySuccess() {
+        if todayStatus == .success {
+            removeTodayRecord()
+        } else {
+            recordToday(.success)
+        }
+    }
+
+    func recordToday(_ status: DayStatus) {
+        guard let selectedChallengeID,
+              let index = challenges.firstIndex(where: { $0.id == selectedChallengeID }),
+              challenges[index].isActive else { return }
+
+        var challenge = challenges[index]
         let today = calendar.startOfDay(for: Date())
-        if let index = challenge.records.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: today) }) {
-            challenge.records[index].status = status
-            challenge.records[index].date = today
+        if let recordIndex = challenge.records.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: today) }) {
+            challenge.records[recordIndex].status = status
+            challenge.records[recordIndex].date = today
         } else {
             challenge.records.append(DailyCheckIn(date: today, status: status))
         }
@@ -75,17 +118,50 @@ final class ChallengeStore: ObservableObject {
         }
 
         challenge.records.sort { $0.date < $1.date }
-        self.challenge = challenge
+        challenges[index] = challenge
         if !challenge.isActive {
+            self.selectedChallengeID = nil
             selectedChallengeName = ""
         }
         save()
     }
 
+    private func removeTodayRecord() {
+        guard let selectedChallengeID,
+              let index = challenges.firstIndex(where: { $0.id == selectedChallengeID }) else { return }
+
+        var challenge = challenges[index]
+        let today = calendar.startOfDay(for: Date())
+        challenge.records.removeAll { calendar.isDate($0.date, inSameDayAs: today) }
+
+        if challenge.outcome == .completed && challenge.successCount < challenge.targetDays {
+            challenge.outcome = .inProgress
+            challenge.endedDate = nil
+        }
+
+        challenges[index] = challenge
+        save()
+    }
+
     func resetChallenge() {
-        challenge = nil
-        selectedChallengeName = ""
-        defaults.removeObject(forKey: storageKey)
+        guard let selectedChallengeID else { return }
+        deleteChallenges(with: [selectedChallengeID])
+    }
+
+    func deleteChallenge(_ challenge: Challenge) {
+        deleteChallenges(with: [challenge.id])
+    }
+
+    private func deleteChallenges(with ids: [UUID]) {
+        let idsToDelete = Set(ids)
+        challenges.removeAll { idsToDelete.contains($0.id) }
+
+        if let selectedChallengeID, idsToDelete.contains(selectedChallengeID) {
+            self.selectedChallengeID = nil
+            selectedChallengeName = ""
+        }
+
+        save()
     }
 
     private func normalizedChallengeName(_ name: String) -> String? {
@@ -100,28 +176,41 @@ final class ChallengeStore: ObservableObject {
     }
 
     private func save() {
-        guard let challenge else {
-            defaults.removeObject(forKey: storageKey)
-            return
-        }
+        let payload = ChallengeStorage(challenges: challenges, selectedChallengeID: selectedChallengeID)
 
         do {
-            let data = try encoder.encode(challenge)
+            let data = try encoder.encode(payload)
             defaults.set(data, forKey: storageKey)
         } catch {
-            assertionFailure("Failed to save challenge: \(error)")
+            assertionFailure("Failed to save challenges: \(error)")
         }
     }
 
     private func load() {
-        guard let data = defaults.data(forKey: storageKey) else { return }
-
-        do {
-            challenge = try decoder.decode(Challenge.self, from: data)
-            selectedChallengeName = challenge?.isActive == true ? challenge?.name ?? "" : ""
-            selectedTargetDays = challenge?.targetDays ?? selectedTargetDays
-        } catch {
-            defaults.removeObject(forKey: storageKey)
+        if let data = defaults.data(forKey: storageKey),
+           let payload = try? decoder.decode(ChallengeStorage.self, from: data) {
+            challenges = payload.challenges
+            selectedChallengeID = nil
+            selectedChallengeName = ""
+            return
         }
+
+        loadLegacyChallengeIfNeeded()
     }
+
+    private func loadLegacyChallengeIfNeeded() {
+        guard let data = defaults.data(forKey: legacyStorageKey),
+              let legacyChallenge = try? decoder.decode(Challenge.self, from: data) else { return }
+
+        challenges = [legacyChallenge]
+        selectedChallengeID = nil
+        selectedChallengeName = ""
+        selectedTargetDays = legacyChallenge.targetDays
+        save()
+    }
+}
+
+private struct ChallengeStorage: Codable {
+    var challenges: [Challenge]
+    var selectedChallengeID: UUID?
 }
