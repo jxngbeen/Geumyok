@@ -58,9 +58,10 @@ final class ChallengeStore: ObservableObject {
     @discardableResult
     func startChallenge(name: String, targetDays: Int) -> Bool {
         guard let normalizedName = normalizedChallengeName(name) else { return false }
+        let displayName = uniqueChallengeName(for: normalizedName)
         let normalizedTarget = min(max(targetDays, 1), 365)
         let newChallenge = Challenge(
-            name: normalizedName,
+            name: displayName,
             startDate: calendar.startOfDay(for: Date()),
             targetDays: normalizedTarget,
             records: [],
@@ -82,9 +83,28 @@ final class ChallengeStore: ObservableObject {
         selectedTargetDays = challenge.targetDays
     }
 
+    func prepareRestart(from challenge: Challenge) {
+        selectedChallengeName = restartName(for: challenge.name)
+        selectedTargetDays = challenge.targetDays
+    }
+
     func clearSelection() {
         selectedChallengeID = nil
         selectedChallengeName = ""
+    }
+
+    @discardableResult
+    func renameSelectedChallenge(to name: String) -> Bool {
+        guard let selectedChallengeID,
+              let index = challenges.firstIndex(where: { $0.id == selectedChallengeID }),
+              let normalizedName = normalizedChallengeName(name) else { return false }
+
+        challenges[index].name = normalizedName
+        if challenges[index].isActive {
+            selectedChallengeName = normalizedName
+        }
+        save()
+        return true
     }
 
     func toggleTodaySuccess() {
@@ -152,6 +172,10 @@ final class ChallengeStore: ObservableObject {
         deleteChallenges(with: [challenge.id])
     }
 
+    func deleteChallenges(_ challenges: [Challenge]) {
+        deleteChallenges(with: challenges.map(\.id))
+    }
+
     private func deleteChallenges(with ids: [UUID]) {
         let idsToDelete = Set(ids)
         challenges.removeAll { idsToDelete.contains($0.id) }
@@ -168,6 +192,71 @@ final class ChallengeStore: ObservableObject {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return String(trimmed.prefix(24))
+    }
+
+    private func uniqueChallengeName(for normalizedName: String) -> String {
+        let baseName = baseChallengeName(normalizedName)
+        let requestedIteration = challengeIteration(for: normalizedName, baseName: baseName) ?? 1
+        let existingIterations = challenges.compactMap { challengeIteration(for: $0.name, baseName: baseName) }
+
+        guard existingIterations.contains(requestedIteration) else {
+            return normalizedName
+        }
+
+        let nextIteration = (existingIterations.max() ?? requestedIteration) + 1
+        return challengeName(baseName: baseName, iteration: nextIteration)
+    }
+
+    private func restartName(for name: String) -> String {
+        let baseName = baseChallengeName(name)
+        let currentIteration = challengeIteration(for: name, baseName: baseName) ?? 1
+        let existingIterations = challenges.compactMap { challengeIteration(for: $0.name, baseName: baseName) }
+        let nextIteration = max(existingIterations.max() ?? currentIteration, currentIteration) + 1
+
+        return challengeName(baseName: baseName, iteration: nextIteration)
+    }
+
+    private func baseChallengeName(_ name: String) -> String {
+        guard let normalizedName = normalizedChallengeName(name),
+              let lastSpace = normalizedName.lastIndex(of: " ") else {
+            return normalizedChallengeName(name) ?? ""
+        }
+
+        let suffix = normalizedName[normalizedName.index(after: lastSpace)...]
+        guard suffix.hasSuffix("회차") else { return normalizedName }
+
+        let numberPart = suffix.dropLast(2)
+        guard Int(numberPart) != nil else { return normalizedName }
+
+        let baseName = normalizedName[..<lastSpace].trimmingCharacters(in: .whitespacesAndNewlines)
+        return baseName.isEmpty ? normalizedName : baseName
+    }
+
+    private func challengeIteration(for name: String, baseName: String) -> Int? {
+        guard let normalizedName = normalizedChallengeName(name), !baseName.isEmpty else { return nil }
+        if normalizedName == baseName { return 1 }
+
+        let prefix = baseName + " "
+        guard normalizedName.hasPrefix(prefix), normalizedName.hasSuffix("회차") else { return nil }
+
+        let suffixStart = normalizedName.index(normalizedName.startIndex, offsetBy: prefix.count)
+        let suffix = normalizedName[suffixStart...]
+        let numberPart = suffix.dropLast(2)
+        guard let iteration = Int(numberPart), iteration >= 1 else { return nil }
+        return iteration
+    }
+
+    private func challengeName(baseName: String, iteration: Int) -> String {
+        guard iteration > 1 else {
+            return normalizedChallengeName(baseName) ?? ""
+        }
+
+        let suffix = " \(iteration)회차"
+        let availableBaseLength = max(24 - suffix.count, 1)
+        let normalizedBaseName = baseChallengeName(baseName)
+        let shortenedBaseName = String(normalizedBaseName.prefix(availableBaseLength))
+
+        return shortenedBaseName + suffix
     }
 
     private func record(for date: Date, in challenge: Challenge) -> DailyCheckIn? {
