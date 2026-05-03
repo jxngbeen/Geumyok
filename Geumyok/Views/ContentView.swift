@@ -6,10 +6,12 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var store = ChallengeStore()
+    @AppStorage("geumyok.hasSeenOnboarding.v1") private var hasSeenOnboarding = false
     @State private var selectedTab: MainTab = .home
     @State private var showingNewChallenge = false
     @State private var showingIntro = true
     @State private var introContentVisible = false
+    @State private var showingOnboarding = false
     @State private var didPlayIntro = false
 
     var body: some View {
@@ -31,7 +33,10 @@ struct ContentView: View {
             }
 
             if showingIntro {
-                IntroSplashView(isVisible: introContentVisible)
+                IntroSplashView(
+                    showsContent: shouldShowFirstLaunchFlow,
+                    isVisible: introContentVisible
+                )
                     .zIndex(10)
                     .transition(.opacity)
             }
@@ -49,6 +54,11 @@ struct ContentView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showingOnboarding, onDismiss: completeOnboarding) {
+            OnboardingTutorialView(onDone: completeOnboarding)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .preferredColorScheme(.dark)
     }
 
@@ -57,20 +67,40 @@ struct ContentView: View {
         guard !didPlayIntro else { return }
         didPlayIntro = true
 
-        try? await Task.sleep(nanoseconds: 120_000_000)
-        withAnimation(.easeOut(duration: 0.32)) {
-            introContentVisible = true
-        }
+        if shouldShowFirstLaunchFlow {
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            withAnimation(.easeOut(duration: 0.3)) {
+                introContentVisible = true
+            }
 
-        try? await Task.sleep(nanoseconds: 850_000_000)
-        withAnimation(.easeInOut(duration: 0.28)) {
-            introContentVisible = false
-            showingIntro = false
+            try? await Task.sleep(nanoseconds: 820_000_000)
+            withAnimation(.easeInOut(duration: 0.24)) {
+                introContentVisible = false
+                showingIntro = false
+            }
+
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            showingOnboarding = true
+        } else {
+            try? await Task.sleep(nanoseconds: 360_000_000)
+            withAnimation(.easeOut(duration: 0.18)) {
+                showingIntro = false
+            }
         }
+    }
+
+    private var shouldShowFirstLaunchFlow: Bool {
+        !hasSeenOnboarding && store.challenges.isEmpty
+    }
+
+    private func completeOnboarding() {
+        hasSeenOnboarding = true
+        showingOnboarding = false
     }
 }
 
 private struct IntroSplashView: View {
+    let showsContent: Bool
     let isVisible: Bool
 
     var body: some View {
@@ -78,33 +108,120 @@ private struct IntroSplashView: View {
             Color.black
                 .ignoresSafeArea()
 
-            VStack(spacing: 18) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.mint.opacity(0.24), lineWidth: 8)
-                    Circle()
-                        .trim(from: 0.08, to: 0.86)
-                        .stroke(Color.mint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 86, height: 86)
+            if showsContent {
+                VStack(spacing: 18) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.mint.opacity(0.24), lineWidth: 8)
+                        Circle()
+                            .trim(from: 0.08, to: 0.86)
+                            .stroke(Color.mint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 86, height: 86)
 
-                VStack(spacing: 8) {
-                    Text("금욕")
-                        .font(.system(size: 42, weight: .black))
-                        .foregroundStyle(.white)
+                    VStack(spacing: 8) {
+                        Text("금욕")
+                            .font(.system(size: 42, weight: .black))
+                            .foregroundStyle(.white)
 
-                    Text("오늘 하루를 지켜내는 기록")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.58))
+                        Text("오늘 하루를 지켜내는 기록")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.58))
+                    }
                 }
+                .opacity(isVisible ? 1 : 0)
+                .scaleEffect(isVisible ? 1 : 0.96)
+                .animation(.easeOut(duration: 0.3), value: isVisible)
             }
-            .opacity(isVisible ? 1 : 0)
-            .scaleEffect(isVisible ? 1 : 0.96)
-            .animation(.easeOut(duration: 0.32), value: isVisible)
+        }
+    }
+}
+
+private struct OnboardingTutorialView: View {
+    let onDone: () -> Void
+
+    var body: some View {
+        ZStack {
+            AppBackground()
+
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("처음 시작하기")
+                        .font(.title.weight(.black))
+
+                    Text("목표를 만들고 하루에 한 번만 기록하세요.")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.62))
+                }
+
+                VStack(spacing: 16) {
+                    OnboardingStepRow(
+                        iconName: "plus.circle.fill",
+                        title: "금욕 만들기",
+                        message: "목표명과 목표 일수를 정해요."
+                    )
+                    OnboardingStepRow(
+                        iconName: "checkmark.circle.fill",
+                        title: "오늘 성공",
+                        message: "하루가 끝나면 성공을 기록해요."
+                    )
+                    OnboardingStepRow(
+                        iconName: "clock.arrow.circlepath",
+                        title: "지난 금욕",
+                        message: "끝난 기록은 목록에서 다시 볼 수 있어요."
+                    )
+                }
+
+                Spacer(minLength: 8)
+
+                Button {
+                    onDone()
+                } label: {
+                    Text("시작하기")
+                        .font(.headline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color.mint)
+                        .foregroundStyle(Color.black)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(24)
+            .frame(maxWidth: 520, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+private struct OnboardingStepRow: View {
+    let iconName: String
+    let title: String
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: iconName)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.mint)
+                .frame(width: 38, height: 38)
+                .background(Color.white.opacity(0.08))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(.white)
+                Text(message)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+
+            Spacer()
         }
     }
 }
@@ -1415,6 +1532,7 @@ private struct ActiveChallengeView: View {
     @ObservedObject var store: ChallengeStore
     let challenge: Challenge
     @Binding var showingNewChallenge: Bool
+    @State private var showingFailureConfirmation = false
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -1461,9 +1579,7 @@ private struct ActiveChallengeView: View {
                         .buttonStyle(.plain)
 
                         Button {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
-                                store.recordToday(.failure)
-                            }
+                            showingFailureConfirmation = true
                         } label: {
                             Label("실패로 기록", systemImage: "xmark.circle.fill")
                                 .font(.headline.weight(.bold))
@@ -1475,6 +1591,20 @@ private struct ActiveChallengeView: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(hasSucceededToday)
+                        .confirmationDialog(
+                            "실패로 기록할까요?",
+                            isPresented: $showingFailureConfirmation,
+                            titleVisibility: .visible
+                        ) {
+                            Button("실패로 기록", role: .destructive) {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+                                    store.recordToday(.failure)
+                                }
+                            }
+                            Button("취소", role: .cancel) { }
+                        } message: {
+                            Text("이 금욕은 종료되고 지난 금욕에 저장됩니다.")
+                        }
                     }
                 } else {
                     ResultSummary(challenge: challenge, onRestart: restartAction)
