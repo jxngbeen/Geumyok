@@ -8,6 +8,9 @@ struct ContentView: View {
     @StateObject private var store = ChallengeStore()
     @State private var selectedTab: MainTab = .home
     @State private var showingNewChallenge = false
+    @State private var showingIntro = true
+    @State private var introContentVisible = false
+    @State private var didPlayIntro = false
 
     var body: some View {
         ZStack {
@@ -26,6 +29,15 @@ struct ContentView: View {
                     showingNewChallenge: $showingNewChallenge
                 )
             }
+
+            if showingIntro {
+                IntroSplashView(isVisible: introContentVisible)
+                    .zIndex(10)
+                    .transition(.opacity)
+            }
+        }
+        .task {
+            await playIntroIfNeeded()
         }
         .onChange(of: store.selectedChallengeID) { _, newValue in
             selectedTab = newValue == nil ? .home : .detail
@@ -39,11 +51,73 @@ struct ContentView: View {
         }
         .preferredColorScheme(.dark)
     }
+
+    @MainActor
+    private func playIntroIfNeeded() async {
+        guard !didPlayIntro else { return }
+        didPlayIntro = true
+
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        withAnimation(.easeOut(duration: 0.32)) {
+            introContentVisible = true
+        }
+
+        try? await Task.sleep(nanoseconds: 850_000_000)
+        withAnimation(.easeInOut(duration: 0.28)) {
+            introContentVisible = false
+            showingIntro = false
+        }
+    }
+}
+
+private struct IntroSplashView: View {
+    let isVisible: Bool
+
+    var body: some View {
+        ZStack {
+            Color.black
+                .ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.mint.opacity(0.24), lineWidth: 8)
+                    Circle()
+                        .trim(from: 0.08, to: 0.86)
+                        .stroke(Color.mint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 86, height: 86)
+
+                VStack(spacing: 8) {
+                    Text("금욕")
+                        .font(.system(size: 42, weight: .black))
+                        .foregroundStyle(.white)
+
+                    Text("오늘 하루를 지켜내는 기록")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+            }
+            .opacity(isVisible ? 1 : 0)
+            .scaleEffect(isVisible ? 1 : 0.96)
+            .animation(.easeOut(duration: 0.32), value: isVisible)
+        }
+    }
 }
 
 private enum MainTab: Hashable {
     case home
     case detail
+}
+
+private enum AppCornerRadius {
+    static let input: CGFloat = 16
+    static let card: CGFloat = 18
+    static let largeCard: CGFloat = 20
 }
 
 private struct HomeOnlyTabView: View {
@@ -299,7 +373,7 @@ private struct EmptyChallengeList: View {
         }
         .padding(18)
         .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.largeCard, style: .continuous))
     }
 }
 private struct ChallengeArchiveButton: View {
@@ -333,7 +407,7 @@ private struct ChallengeArchiveButton: View {
         }
         .padding(16)
         .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.card, style: .continuous))
     }
 }
 
@@ -378,18 +452,19 @@ private enum ChallengeArchiveKind {
         }
     }
 }
-
 private struct ChallengeArchiveView: View {
     @ObservedObject var store: ChallengeStore
     let kind: ChallengeArchiveKind
     let onSelect: (Challenge) -> Void
-    @State private var isSelecting = false
     @State private var selectedIDs: Set<UUID> = []
-    @State private var rowFrames: [UUID: CGRect] = [:]
-    @State private var lastDraggedID: UUID?
+#if os(iOS)
+    @State private var editMode: EditMode = .inactive
+#else
+    @State private var fallbackIsSelecting = false
+#endif
 
     var body: some View {
-        List {
+        List(selection: $selectedIDs) {
             Section {
                 if archiveChallenges.isEmpty {
                     Text(kind.emptyText)
@@ -398,36 +473,17 @@ private struct ChallengeArchiveView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(16)
                         .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.card, style: .continuous))
                         .listRowInsets(EdgeInsets(top: 5, leading: 24, bottom: 5, trailing: 24))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 } else {
                     ForEach(archiveChallenges) { challenge in
-                        Button {
-                            handleTap(challenge)
-                        } label: {
-                            SelectableChallengeRow(
-                                challenge: challenge,
-                                isSelecting: isSelecting,
-                                isSelected: selectedIDs.contains(challenge.id),
-                                coordinateSpaceName: kind.coordinateSpaceName
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            if !isSelecting {
-                                Button(role: .destructive) {
-                                    store.deleteChallenge(challenge)
-                                } label: {
-                                    Label("삭제", systemImage: "trash")
-                                }
-                                .tint(.red)
-                            }
-                        }
-                        .listRowInsets(EdgeInsets(top: 5, leading: 24, bottom: 5, trailing: 24))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                        archiveRow(for: challenge)
+                            .tag(challenge.id)
+                            .listRowInsets(EdgeInsets(top: 5, leading: 24, bottom: 5, trailing: 24))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                     }
                 }
             } header: {
@@ -438,6 +494,9 @@ private struct ChallengeArchiveView: View {
                     .padding(.horizontal, 8)
             }
         }
+#if os(iOS)
+        .environment(\.editMode, $editMode)
+#endif
         .navigationTitle(kind.title)
 #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -458,24 +517,53 @@ private struct ChallengeArchiveView: View {
                 selectionDeleteButton
             }
         }
-        .coordinateSpace(name: kind.coordinateSpaceName)
-        .simultaneousGesture(selectionDragGesture)
-        .onPreferenceChange(ChallengeRowFramePreferenceKey.self) { frames in
-            rowFrames = frames
-        }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color.clear)
         .onChange(of: archiveChallenges.map(\.id)) { _, ids in
             selectedIDs.formIntersection(Set(ids))
             if ids.isEmpty {
-                isSelecting = false
+#if os(iOS)
+                editMode = .inactive
+#else
+                fallbackIsSelecting = false
+#endif
             }
         }
     }
 
     private var archiveChallenges: [Challenge] {
         kind.challenges(from: store)
+    }
+
+    private var isSelecting: Bool {
+#if os(iOS)
+        editMode == .active
+#else
+        fallbackIsSelecting
+#endif
+    }
+
+    @ViewBuilder
+    private func archiveRow(for challenge: Challenge) -> some View {
+        if isSelecting {
+            ChallengeRow(challenge: challenge)
+        } else {
+            Button {
+                onSelect(challenge)
+            } label: {
+                ChallengeRow(challenge: challenge)
+            }
+            .buttonStyle(.plain)
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button(role: .destructive) {
+                    store.deleteChallenge(challenge)
+                } label: {
+                    Label("삭제", systemImage: "trash")
+                }
+                .tint(.red)
+            }
+        }
     }
 
     private var selectionDeleteButton: some View {
@@ -509,57 +597,21 @@ private struct ChallengeArchiveView: View {
         selectedIDs.isEmpty ? Color.white.opacity(0.28) : Color.red.opacity(0.94)
     }
 
-    private var selectionDragGesture: some Gesture {
-        DragGesture(minimumDistance: 6, coordinateSpace: .named(kind.coordinateSpaceName))
-            .onChanged { value in
-                guard isSelecting else { return }
-                selectChallenge(at: value.location)
-            }
-            .onEnded { _ in
-                lastDraggedID = nil
-            }
-    }
-
-    private func handleTap(_ challenge: Challenge) {
-        if isSelecting {
-            toggleSelection(for: challenge)
-        } else {
-            onSelect(challenge)
-        }
-    }
-
     private func toggleSelecting() {
-        withAnimation(.easeOut(duration: 0.18)) {
-            isSelecting.toggle()
-            if !isSelecting {
+        withoutSelectionAnimation {
+#if os(iOS)
+            if isSelecting {
+                editMode = .inactive
                 selectedIDs.removeAll()
-                lastDraggedID = nil
-            }
-        }
-    }
-
-    private func toggleSelection(for challenge: Challenge) {
-        withAnimation(.easeOut(duration: 0.14)) {
-            if selectedIDs.contains(challenge.id) {
-                selectedIDs.remove(challenge.id)
             } else {
-                _ = selectedIDs.insert(challenge.id)
+                editMode = .active
             }
-        }
-    }
-
-    private func selectChallenge(at location: CGPoint) {
-        guard let id = rowFrames
-            .sorted(by: { $0.value.minY < $1.value.minY })
-            .first(where: { $0.value.contains(location) })?
-            .key,
-            lastDraggedID != id else { return }
-
-        lastDraggedID = id
-        guard !selectedIDs.contains(id) else { return }
-
-        withAnimation(.easeOut(duration: 0.12)) {
-            _ = selectedIDs.insert(id)
+#else
+            fallbackIsSelecting.toggle()
+            if !fallbackIsSelecting {
+                selectedIDs.removeAll()
+            }
+#endif
         }
     }
 
@@ -567,43 +619,23 @@ private struct ChallengeArchiveView: View {
         let selectedChallenges = archiveChallenges.filter { selectedIDs.contains($0.id) }
         guard !selectedChallenges.isEmpty else { return }
 
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+        withoutSelectionAnimation {
             store.deleteChallenges(selectedChallenges)
             selectedIDs.removeAll()
-            isSelecting = false
+#if os(iOS)
+            editMode = .inactive
+#else
+            fallbackIsSelecting = false
+#endif
         }
     }
-}
 
-private struct SelectableChallengeRow: View {
-    let challenge: Challenge
-    let isSelecting: Bool
-    let isSelected: Bool
-    let coordinateSpaceName: String
-
-    var body: some View {
-        ChallengeRow(
-            challenge: challenge,
-            isSelecting: isSelecting,
-            isSelected: isSelected
-        )
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: ChallengeRowFramePreferenceKey.self,
-                    value: [challenge.id: proxy.frame(in: .named(coordinateSpaceName))]
-                )
-            }
+    private func withoutSelectionAnimation(_ updates: () -> Void) {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            updates()
         }
-        .contentShape(Rectangle())
-    }
-}
-
-private struct ChallengeRowFramePreferenceKey: PreferenceKey {
-    static var defaultValue: [UUID: CGRect] = [:]
-
-    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
 
@@ -623,7 +655,7 @@ private struct ChallengeSection: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
                     .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.card, style: .continuous))
                     .listRowInsets(EdgeInsets(top: 5, leading: 24, bottom: 5, trailing: 24))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -703,11 +735,11 @@ private struct ChallengeRow: View {
         .padding(16)
         .background(Color.white.opacity(isSelected ? 0.12 : 0.08))
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppCornerRadius.card, style: .continuous)
                 .stroke(isSelected ? Color.red.opacity(0.34) : Color.clear, lineWidth: 1)
                 .allowsHitTesting(false)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.card, style: .continuous))
         .animation(.easeOut(duration: 0.16), value: isSelecting)
         .animation(.easeOut(duration: 0.16), value: isSelected)
     }
@@ -839,9 +871,9 @@ private struct ChallengeNameField: View {
         .padding(.horizontal, 16)
         .frame(height: 56)
         .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.input, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppCornerRadius.input, style: .continuous)
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
                 .allowsHitTesting(false)
         }
@@ -945,7 +977,7 @@ private struct TargetDayWheel: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppCornerRadius.input, style: .continuous)
                 .fill(Color.white.opacity(0.08))
 
 #if os(iOS)
@@ -963,9 +995,9 @@ private struct TargetDayWheel: View {
 #endif
         }
         .frame(height: 184)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.input, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: AppCornerRadius.input, style: .continuous)
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
                 .allowsHitTesting(false)
         }
@@ -1567,7 +1599,7 @@ private struct StatPill: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
         .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.input, style: .continuous))
     }
 }
 
@@ -1618,7 +1650,7 @@ private struct ResultSummary: View {
         }
         .padding(16)
         .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.card, style: .continuous))
     }
 
     private var title: String {
