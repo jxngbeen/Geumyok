@@ -1,6 +1,6 @@
 # 금욕
 
-<img src="https://img.shields.io/badge/Swift-FA7343?style=for-the-badge&logo=swift&logoColor=white"/>
+<img src="https://img.shields.io/badge/Swift-FA7343?style=for-the-badge&logo=swift&logoColor=white"/> <img src="https://img.shields.io/badge/Xcode-007ACC?style=for-the-badge&logo=Xcode&logoColor=white"/>
 
 금욕은 금연, 야식 끊기, SNS 줄이기처럼 계속 이어가고 싶은 목표를 만들고 매일 성공 여부를 기록하는 SwiftUI 기반 iOS 앱입니다. 여러 개의 금욕을 동시에 관리하고, 진행 중인 금욕과 종료된 금욕을 나눠 볼 수 있습니다.
 
