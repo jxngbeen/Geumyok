@@ -3,18 +3,27 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		18B4DBA8CBA4FF90A0AA832F /* ChallengeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12C680B0E69D33F91C7B68A /* ChallengeRow.swift */; };
 		1A2B3C4D5E6F700000000001 /* GeumyokApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F700000000101 /* GeumyokApp.swift */; };
 		1A2B3C4D5E6F700000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F700000000102 /* ContentView.swift */; };
 		1A2B3C4D5E6F700000000003 /* Challenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F700000000103 /* Challenge.swift */; };
 		1A2B3C4D5E6F700000000004 /* ChallengeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F700000000104 /* ChallengeStore.swift */; };
 		1A2B3C4D5E6F700000000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F700000000105 /* Assets.xcassets */; };
+		31A2065590F69A964EC91CD0 /* ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCAE0815CF29FF61C56D7D57 /* ArchiveView.swift */; };
+		418F309704FA728ECF32E8A8 /* StartChallengeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C366B0B08020DC338A4E744 /* StartChallengeView.swift */; };
+		5877C878D98D722FAE251BBB /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E426CED3C89C000FB4C4036F /* DashboardView.swift */; };
+		68E86AD4B9A44A79BE6672C9 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0377ECA14EBCDC0DCB547588 /* OnboardingView.swift */; };
+		7D0A9BE5CD46451DE4139EA6 /* ActiveChallengeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B702B6840E325852A395ED4E /* ActiveChallengeView.swift */; };
+		80C76E746E3D10479804F3F9 /* ProgressRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC8AEE7C8180DDC9DAE05D9B /* ProgressRing.swift */; };
+		CA29A532408B619EB0286A4A /* AppBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97FF1A58B893ED4D4D9E305 /* AppBackground.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0377ECA14EBCDC0DCB547588 /* OnboardingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F700000000100 /* Geumyok.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Geumyok.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A2B3C4D5E6F700000000101 /* GeumyokApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeumyokApp.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F700000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -22,6 +31,13 @@
 		1A2B3C4D5E6F700000000104 /* ChallengeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeStore.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F700000000105 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A2B3C4D5E6F700000000106 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		8C366B0B08020DC338A4E744 /* StartChallengeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StartChallengeView.swift; sourceTree = "<group>"; };
+		B12C680B0E69D33F91C7B68A /* ChallengeRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChallengeRow.swift; sourceTree = "<group>"; };
+		B702B6840E325852A395ED4E /* ActiveChallengeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActiveChallengeView.swift; sourceTree = "<group>"; };
+		D97FF1A58B893ED4D4D9E305 /* AppBackground.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppBackground.swift; sourceTree = "<group>"; };
+		DCAE0815CF29FF61C56D7D57 /* ArchiveView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArchiveView.swift; sourceTree = "<group>"; };
+		E426CED3C89C000FB4C4036F /* DashboardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		EC8AEE7C8180DDC9DAE05D9B /* ProgressRing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProgressRing.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,6 +100,12 @@
 			isa = PBXGroup;
 			children = (
 				1A2B3C4D5E6F700000000102 /* ContentView.swift */,
+				28731394EAD662675FDD6353 /* Components */,
+				0377ECA14EBCDC0DCB547588 /* OnboardingView.swift */,
+				E426CED3C89C000FB4C4036F /* DashboardView.swift */,
+				8C366B0B08020DC338A4E744 /* StartChallengeView.swift */,
+				DCAE0815CF29FF61C56D7D57 /* ArchiveView.swift */,
+				B702B6840E325852A395ED4E /* ActiveChallengeView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -94,6 +116,17 @@
 				1A2B3C4D5E6F700000000106 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		28731394EAD662675FDD6353 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				B12C680B0E69D33F91C7B68A /* ChallengeRow.swift */,
+				EC8AEE7C8180DDC9DAE05D9B /* ProgressRing.swift */,
+				D97FF1A58B893ED4D4D9E305 /* AppBackground.swift */,
+			);
+			name = Components;
+			path = Components;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -170,6 +203,14 @@
 				1A2B3C4D5E6F700000000002 /* ContentView.swift in Sources */,
 				1A2B3C4D5E6F700000000003 /* Challenge.swift in Sources */,
 				1A2B3C4D5E6F700000000004 /* ChallengeStore.swift in Sources */,
+				68E86AD4B9A44A79BE6672C9 /* OnboardingView.swift in Sources */,
+				5877C878D98D722FAE251BBB /* DashboardView.swift in Sources */,
+				418F309704FA728ECF32E8A8 /* StartChallengeView.swift in Sources */,
+				31A2065590F69A964EC91CD0 /* ArchiveView.swift in Sources */,
+				7D0A9BE5CD46451DE4139EA6 /* ActiveChallengeView.swift in Sources */,
+				18B4DBA8CBA4FF90A0AA832F /* ChallengeRow.swift in Sources */,
+				80C76E746E3D10479804F3F9 /* ProgressRing.swift in Sources */,
+				CA29A532408B619EB0286A4A /* AppBackground.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,11 +333,12 @@
 		1A2B3C4D5E6F700000000803 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Geumyok/Preview Content\"";
+				DEVELOPMENT_TEAM = S4F84Q6XD7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "금욕";
@@ -323,11 +365,12 @@
 		1A2B3C4D5E6F700000000804 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Geumyok/Preview Content\"";
+				DEVELOPMENT_TEAM = S4F84Q6XD7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "금욕";
